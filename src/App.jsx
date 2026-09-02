@@ -1,0 +1,60 @@
+import { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from './firebase';
+import Login from './auth/Login';
+import UserDashboard from './dashboards/user/UserDashboard';
+import HospitalDashboard from './dashboards/hospital/HospitalDashboard';
+import DriverDashboard from './dashboards/driver/DriverDashboard';
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [role, setRole] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        try {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDoc.exists()) {
+            setRole(userDoc.data().role);
+          }
+        } catch (error) {
+          console.error('Error fetching user role:', error);
+        }
+      } else {
+        setUser(null);
+        setRole(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) {
+    return <div style={{ padding: '20px' }}>Loading...</div>;
+  }
+
+  return (
+    <Router>
+      <Routes>
+        {!user ? (
+          <Route path="/*" element={<Login />} />
+        ) : (
+          <>
+            {role === 'user' && <Route path="/*" element={<UserDashboard />} />}
+            {role === 'hospital' && <Route path="/*" element={<HospitalDashboard />} />}
+            {role === 'driver' && <Route path="/*" element={<DriverDashboard />} />}
+            <Route path="/*" element={<Navigate to="/dashboard" />} />
+          </>
+        )}
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
