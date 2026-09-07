@@ -7,6 +7,7 @@ import Login from './auth/Login';
 import UserDashboard from './dashboards/user/UserDashboard';
 import HospitalDashboard from './dashboards/hospital/HospitalDashboard';
 import DriverDashboard from './dashboards/driver/DriverDashboard';
+import './App.css';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -17,13 +18,9 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        try {
-          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          if (userDoc.exists()) {
-            setRole(userDoc.data().role);
-          }
-        } catch (error) {
-          console.error('Error fetching user role:', error);
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists()) {
+          setRole(userDoc.data().role);
         }
       } else {
         setUser(null);
@@ -36,7 +33,7 @@ function App() {
   }, []);
 
   if (loading) {
-    return <div style={{ padding: '20px' }}>Loading...</div>;
+    return <div className="page-loading">Loading…</div>;
   }
 
   return (

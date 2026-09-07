@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { signOut } from 'firebase/auth';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
@@ -13,13 +13,15 @@ function UserDashboard() {
     setLoading(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const { latitude, longitude } = position.coords;
-        setLocation({ latitude, longitude });
+        setLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
         setError('');
         setLoading(false);
       },
       (err) => {
-        setError('Failed to get location: ' + err.message);
+        setError('Could not get your location: ' + err.message);
         setLoading(false);
       }
     );
@@ -27,7 +29,7 @@ function UserDashboard() {
 
   const handleReportAccident = async () => {
     if (!location) {
-      setError('Please capture location first');
+      setError('Capture your location first');
       return;
     }
 
@@ -42,72 +44,51 @@ function UserDashboard() {
         createdAt: serverTimestamp(),
       });
 
-      setSuccess('Accident reported successfully!');
+      setSuccess('Accident reported. Help is on the way.');
       setLocation(null);
       setError('');
-      setTimeout(() => setSuccess(''), 3000);
+      setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
-      setError('Error reporting accident: ' + err.message);
+      setError('Could not submit the report: ' + err.message);
     }
     setLoading(false);
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>User Dashboard - Report Accident</h2>
-        <button onClick={() => signOut(auth)} style={{ padding: '8px 16px', cursor: 'pointer' }}>
-          Logout
+    <div className="page">
+      <div className="topbar">
+        <h1>HealthMinute — Report an accident</h1>
+        <button className="btn btn-ghost" onClick={() => signOut(auth)}>
+          Log out
         </button>
       </div>
 
-      <div style={{ border: '1px solid #ccc', padding: '20px', borderRadius: '8px' }}>
-        <h3>Phase 1 - Report Accident</h3>
-
-        <div style={{ marginBottom: '20px' }}>
-          <button
-            onClick={handleGetLocation}
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '12px',
-              backgroundColor: '#3498db',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-            }}
-          >
-            {loading && location === null ? 'Getting Location...' : '📍 Capture Location'}
+      <div className="container">
+        <div className="card">
+          <p className="card-title">Location</p>
+          <button className="btn btn-primary" onClick={handleGetLocation} disabled={loading}>
+            {loading && !location ? 'Getting location…' : 'Capture current location'}
           </button>
           {location && (
-            <p style={{ marginTop: '10px', color: 'green' }}>
-              ✓ Location captured: {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+            <p className="status-line status-ok">
+              Location captured — {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
             </p>
           )}
         </div>
 
-        <button
-          onClick={handleReportAccident}
-          disabled={loading || !location}
-          style={{
-            width: '100%',
-            padding: '12px',
-            backgroundColor: location ? '#e74c3c' : '#bdc3c7',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: location ? 'pointer' : 'not-allowed',
-            fontSize: '16px',
-            fontWeight: 'bold',
-          }}
-        >
-          {loading ? 'Submitting...' : '🚨 Submit Accident Report'}
-        </button>
+        <div className="card">
+          <p className="card-title">Submit report</p>
+          <button
+            className="btn btn-danger"
+            onClick={handleReportAccident}
+            disabled={loading || !location}
+          >
+            {loading ? 'Submitting…' : 'Report accident'}
+          </button>
 
-        {error && <p style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
-        {success && <p style={{ color: 'green', marginTop: '10px' }}>{success}</p>}
+          {error && <p className="status-line status-error">{error}</p>}
+          {success && <p className="status-line status-ok">{success}</p>}
+        </div>
       </div>
     </div>
   );
