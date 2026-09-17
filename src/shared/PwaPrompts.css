@@ -1,0 +1,22 @@
+/* Positioning only — the pill's visual treatment comes from the shared
+   .toast primitive in App.css. Sits above the sticky topbar (z-sticky),
+   the fixed bottom navs (z-fixed-nav) and the floating map widget
+   (z-map-widget). */
+
+.pwa-prompts {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: center;
+  width: min(420px, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+.pwa-prompt {
+  width: 100%;
+}

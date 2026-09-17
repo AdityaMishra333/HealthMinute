@@ -2,7 +2,14 @@ import { useState } from 'react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { IconAlert, IconPin, IconAmbulance, IconHospital } from '../shared/Icons';
 import './Login.css';
+
+const ROLES = [
+  { value: 'user', label: 'User', Icon: IconPin },
+  { value: 'hospital', label: 'Hospital', Icon: IconHospital },
+  { value: 'driver', label: 'Driver', Icon: IconAmbulance },
+];
 
 function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -19,6 +26,26 @@ function Login() {
   const [medicalConditions, setMedicalConditions] = useState('');
   const [emergencyContactName, setEmergencyContactName] = useState('');
   const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
+
+  const [hospitalName, setHospitalName] = useState('');
+  const [hospitalLocation, setHospitalLocation] = useState(null);
+  const [locatingHospital, setLocatingHospital] = useState(false);
+
+  const handleCaptureHospitalLocation = () => {
+    setLocatingHospital(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setHospitalLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setLocatingHospital(false);
+      },
+      () => {
+        setLocatingHospital(false);
+      }
+    );
+  };
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -47,6 +74,15 @@ function Login() {
           });
         }
 
+        if (role === 'hospital') {
+          Object.assign(profileData, {
+            hospitalName,
+            latitude: hospitalLocation?.latitude ?? null,
+            longitude: hospitalLocation?.longitude ?? null,
+            availableBeds: 0,
+          });
+        }
+
         await setDoc(doc(db, 'users', result.user.uid), profileData);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
@@ -59,7 +95,12 @@ function Login() {
   return (
     <div className="auth-page">
       <div className="auth-box">
-        <h1>HealthMinute</h1>
+        <div className="auth-brand">
+          <span className="auth-brand-mark">
+            <IconAlert size={18} />
+          </span>
+          <h1>HealthMinute</h1>
+        </div>
         <p className="auth-subtitle">Emergency response, coordinated in real time.</p>
 
         <form onSubmit={handleAuth}>
@@ -79,11 +120,45 @@ function Login() {
           />
 
           {isSignUp && (
-            <select value={role} onChange={(e) => setRole(e.target.value)}>
-              <option value="user">User</option>
-              <option value="hospital">Hospital</option>
-              <option value="driver">Ambulance Driver</option>
-            </select>
+            <div className="role-picker">
+              {ROLES.map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`role-option ${role === value ? 'active' : ''}`}
+                  onClick={() => setRole(value)}
+                >
+                  <Icon size={17} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {isSignUp && role === 'hospital' && (
+            <>
+              <div className="form-divider">Hospital details</div>
+
+              <input
+                type="text"
+                placeholder="Hospital name"
+                value={hospitalName}
+                onChange={(e) => setHospitalName(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={handleCaptureHospitalLocation}
+                disabled={locatingHospital}
+              >
+                {locatingHospital
+                  ? 'Getting location…'
+                  : hospitalLocation
+                  ? 'Location captured ✓'
+                  : 'Capture hospital location'}
+              </button>
+            </>
           )}
 
           {isSignUp && role === 'user' && (

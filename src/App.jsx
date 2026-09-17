@@ -7,6 +7,8 @@ import Login from './auth/Login';
 import UserDashboard from './dashboards/user/UserDashboard';
 import HospitalDashboard from './dashboards/hospital/HospitalDashboard';
 import DriverDashboard from './dashboards/driver/DriverDashboard';
+import TrackAccident from './tracking/TrackAccident';
+import PwaPrompts from './shared/PwaPrompts';
 import './App.css';
 
 function App() {
@@ -38,7 +40,9 @@ function App() {
 
   return (
     <Router>
+      <PwaPrompts />
       <Routes>
+        <Route path="/track/:accidentId" element={<TrackAccident />} />
         {!user ? (
           <Route path="/*" element={<Login />} />
         ) : (

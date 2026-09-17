@@ -1,0 +1,113 @@
+/* Driver — mobile-first, in-motion. Largest touch targets of the three
+   surfaces: one screen, one decision, big stacked buttons. */
+
+.driver-page.has-active-bar .container {
+  padding-bottom: 180px;
+}
+
+.driver-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.driver-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--status-neutral-solid);
+  border-radius: var(--r-lg);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+
+.driver-card-critical {
+  border-left-color: var(--status-critical-solid);
+}
+
+.driver-card-active {
+  border-left-color: var(--status-active-solid);
+}
+
+.driver-card-resolved {
+  border-left-color: var(--status-resolved-solid);
+}
+
+/* The driver's own active case additionally gets a tinted background —
+   it's the one card that matters most right now. */
+.driver-card-mine {
+  background: var(--status-active-tint);
+}
+
+.driver-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.driver-card-coords {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--ink-900);
+  margin-bottom: 2px;
+}
+
+.driver-card-coords svg {
+  color: var(--color-primary);
+}
+
+.driver-card-reporter {
+  font-size: var(--text-sm);
+  color: var(--ink-500);
+  margin-bottom: var(--space-3);
+}
+
+.driver-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.driver-card-active-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--status-active-text);
+}
+
+/* Persistent, thumb-reachable action bar for the driver's own active case —
+   one screen, one decision, always in reach regardless of scroll position. */
+.driver-active-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-fixed-nav);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom));
+  background: var(--surface-card);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -12px 32px rgba(16, 18, 26, 0.14);
+}
+
+@media (min-width: 640px) {
+  .driver-active-bar {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 640px;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+  }
+}

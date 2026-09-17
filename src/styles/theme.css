@@ -1,0 +1,181 @@
+:root {
+  /* ============================================================
+     BRAND — accent used for primary non-emergency actions, links,
+     focus rings and the wordmark. Never reused for status meaning.
+     ============================================================ */
+  --color-primary: #4361ee;
+  --color-primary-dark: #3448c5;
+  --color-primary-tint: rgba(67, 97, 238, 0.1);
+  --color-primary-ring: #7c94f5; /* lighter variant for rings on dark surfaces */
+
+  /* Legacy aliases some components still read directly. Values now
+     equal the semantic status tokens below — kept so nothing breaks. */
+  --color-danger: #dc2626;
+  --color-danger-dark: #c62839;
+  --color-success: #0e7a4e;
+  --color-success-dark: #147a48;
+  --color-warning: #f5a623;
+
+  /* ============================================================
+     SEMANTIC STATUS SCALE — the only place "emergency red" lives.
+     Each status pairs a solid (chip bg + white text), a text tone
+     (for labels on light backgrounds), a light tint (card/badge
+     backgrounds) and a "-on-dark" tone (for the dispatch console).
+     Every pairing below is WCAG AA verified (4.5:1 body text,
+     3:1 UI/large text) — see the contrast table in the PR notes.
+     ============================================================ */
+
+  /* CRITICAL — an active, unaccepted emergency. Nowhere else. */
+  --status-critical-solid: #dc2626; /* white text/icon on this: 4.83:1 */
+  --status-critical-text: #c62839; /* on white: 5.58:1 / on tint: 5.06:1 */
+  --status-critical-tint: #fdf1f1;
+  --status-critical-border: #f3c6ca;
+  --status-critical-on-dark: #f87171; /* on dispatch surface: 6.20:1 */
+
+  /* ACTIVE — accepted, en route, in progress. */
+  --status-active-solid: #b45309; /* white text/icon on this: 5.02:1 */
+  --status-active-text: #b45309; /* on white: 5.02:1 */
+  --status-active-tint: #fff3e0; /* text on this tint: 4.58:1 */
+  --status-active-border: #f2d5a8;
+  --status-active-dot: #f5a623; /* decorative-only (progress fill, pulse) */
+  --status-active-on-dark: #fbbf24; /* on dispatch surface: 10.28:1 */
+
+  /* RESOLVED — case closed. */
+  --status-resolved-solid: #0e7a4e; /* white text/icon on this: 5.37:1 */
+  --status-resolved-text: #147a48; /* on white: 5.37:1 / on tint: 5.00:1 */
+  --status-resolved-tint: #f0f9f3;
+  --status-resolved-border: #bfe4cf;
+  --status-resolved-on-dark: #4ade80; /* on dispatch surface: 9.85:1 */
+
+  /* NEUTRAL — idle, no active incident. */
+  --status-neutral-solid: #6b7280;
+  --status-neutral-text: #586274; /* on white: 6.15:1 */
+  --status-neutral-tint: #eef1f7;
+  --status-neutral-border: #dde1ea;
+  --status-neutral-on-dark: #94a3b8;
+
+  /* A separate, deliberately distinct tone for form/auth validation
+     errors — never the saturated critical red, so "wrong password"
+     can never visually read as "active emergency". */
+  --tone-error-text: #9f1d35; /* on white: 7.77:1 */
+  --tone-error-tint: #fdf1f1;
+  --tone-error-on-dark: #fca5a5; /* on dispatch surface: 9.04:1 */
+
+  /* ============================================================
+     NEUTRALS (light surfaces)
+     ============================================================ */
+  --ink-900: #12131a;
+  --ink-700: #3a3f4b;
+  --ink-500: #586274; /* darkened from the original #6b7280 — the old
+    value fell to 4.47:1 on --surface, just under AA. */
+  --ink-300: #9aa1ac; /* decorative/disabled use only — does not
+    itself pass AA text contrast; never use for text that must be read. */
+  --surface: #f4f6fb;
+  --surface-card: #ffffff;
+  --surface-sunken: #eef1f7;
+  --border: #e4e7ee;
+
+  /* ============================================================
+     DISPATCH CONSOLE — dark, dense surface for the hospital view.
+     ============================================================ */
+  --dispatch-bg: #0b1220;
+  --dispatch-surface: #131b2e;
+  --dispatch-surface-raised: #1a2338;
+  --dispatch-border: #26314a;
+  --dispatch-border-strong: #35415c;
+  --dispatch-text: #f1f5f9; /* on surface: 15.66:1 */
+  --dispatch-text-muted: #a8b3c7; /* on surface: 8.12:1 */
+
+  /* ============================================================
+     TYPOGRAPHY
+     ============================================================ */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', var(--font-sans);
+
+  --text-xs: 0.75rem; /* 12px */
+  --text-sm: 0.8125rem; /* 13px */
+  --text-base: 0.9375rem; /* 15px */
+  --text-md: 1rem; /* 16px */
+  --text-lg: 1.125rem; /* 18px */
+  --text-xl: 1.375rem; /* 22px */
+  --text-2xl: 1.75rem; /* 28px */
+  --text-3xl: 2.25rem; /* 36px */
+  --text-4xl: 3rem; /* 48px */
+
+  /* ============================================================
+     SPACING SCALE
+     ============================================================ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ============================================================
+     RADIUS
+     ============================================================ */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-xl: 26px;
+  --r-pill: 999px;
+
+  /* ============================================================
+     SHADOW
+     ============================================================ */
+  --shadow-sm: 0 1px 2px rgba(16, 18, 26, 0.06);
+  --shadow-md: 0 8px 24px rgba(16, 18, 26, 0.08);
+  --shadow-lg: 0 20px 48px rgba(16, 18, 26, 0.16);
+  --shadow-dispatch: 0 12px 28px rgba(0, 0, 0, 0.45);
+
+  /* ============================================================
+     Z-INDEX SCALE — one source of truth for stacking order.
+     ============================================================ */
+  --z-backdrop: 0;
+  --z-content: 1;
+  --z-sticky: 20;
+  --z-fixed-nav: 50;
+  --z-map-widget: 1000;
+  --z-toast: 2000;
+  --z-modal: 3000;
+
+  /* ============================================================
+     MOTION — fast, purposeful only.
+     ============================================================ */
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 250ms;
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Auth page background wash — decorative only, deliberately far too
+     desaturated to read as either the brand accent or emergency red. */
+  --auth-gradient-start: #eef2ff;
+  --auth-gradient-mid: #f6f7fb;
+  --auth-gradient-end: #ffedf1;
+
+  /* user-panel: DelTrack-inspired palette (reporter surface) */
+  --dt-bg: #f2f3fb;
+  --dt-navy: #171b34;
+  --dt-navy-soft: #232a4d;
+  --dt-periwinkle: #8fa1f7;
+  --dt-periwinkle-soft: #c9d0fb;
+  --dt-teal: #24c2b0;
+  --dt-teal-dark: #1a9c8d;
+  --dt-amber: #f5a623;
+  --dt-ink: #171b34;
+  --dt-ink-soft: #586274;
+  --dt-shadow: 0 16px 40px rgba(23, 27, 52, 0.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+  }
+}

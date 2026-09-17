@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBNA50q81m_GecSfik7PjvNN-rqY2ASoqI",
@@ -16,4 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
+// Backs the sendSosAlert callable in functions/index.js. Region must match
+// the REGION constant there exactly — httpsCallable resolves the function's
+// URL from this region, so a mismatch 404s with no useful error message.
+export const functions = getFunctions(app, 'us-central1');

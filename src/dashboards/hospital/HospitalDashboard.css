@@ -1,0 +1,346 @@
+/* Dispatch console — dark, dense, desktop-first. Note: a handful of dark
+   re-themes for shared primitives (.card, .btn-ghost, .tab-row, .stat-tile,
+   .empty-state, .skeleton, chart tokens) live in App.css next to the
+   primitives themselves; everything specific to this screen's own layout
+   is here. */
+
+.dispatch-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--dispatch-bg);
+  color: var(--dispatch-text);
+}
+
+.dispatch-shell .input {
+  background: var(--dispatch-bg);
+  border-color: var(--dispatch-border-strong);
+  color: var(--dispatch-text);
+}
+
+.dispatch-shell .input::placeholder {
+  color: var(--dispatch-text-muted);
+}
+
+.dispatch-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 14px var(--space-5);
+  background: var(--dispatch-surface);
+  border-bottom: 1px solid var(--dispatch-border);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+}
+
+.dispatch-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--dispatch-text);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dispatch-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  background: var(--dispatch-surface);
+  border-bottom: 1px solid var(--dispatch-border);
+}
+
+.dispatch-beds {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--dispatch-text-muted);
+  font-weight: 600;
+}
+
+.dispatch-beds svg {
+  color: var(--color-primary-ring);
+  flex-shrink: 0;
+}
+
+.dispatch-beds .bed-input-row {
+  margin-left: var(--space-2);
+}
+
+.dispatch-beds input {
+  width: 76px;
+  text-align: center;
+}
+
+.dispatch-analytics {
+  padding: var(--space-5);
+}
+
+.dispatch-summary {
+  padding: var(--space-3) var(--space-5) 0;
+  font-size: var(--text-sm);
+  color: var(--dispatch-text-muted);
+  font-weight: 600;
+}
+
+.dispatch-summary-critical {
+  color: var(--status-critical-on-dark);
+  font-weight: 700;
+}
+
+/* Neutral, not critical-red — this counts resolved + missed cases, not
+   active emergencies, so it stays outside that colour's one reserved
+   meaning. */
+.dispatch-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  margin-left: 2px;
+  border-radius: var(--r-pill);
+  background: var(--dispatch-border-strong);
+  color: var(--dispatch-text);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.dispatch-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+.dispatch-mobile-tabs {
+  display: flex;
+  gap: 4px;
+  margin: var(--space-3) var(--space-5) 0;
+  background: var(--dispatch-surface-raised);
+  padding: 4px;
+  border-radius: var(--r-md);
+  width: fit-content;
+}
+
+.dispatch-mobile-tabs .btn {
+  color: var(--dispatch-text-muted);
+}
+
+.dispatch-mobile-tabs .btn.active {
+  background: var(--dispatch-surface);
+  color: var(--dispatch-text);
+}
+
+.dispatch-body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dispatch-pane {
+  display: none;
+}
+
+.dispatch-pane.is-active {
+  display: block;
+}
+
+.dispatch-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dispatch-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--dispatch-surface);
+  border: 1px solid var(--dispatch-border);
+  border-left: 4px solid var(--dispatch-border-strong);
+  border-radius: var(--r-md);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard),
+    background var(--duration-fast) var(--ease-standard);
+}
+
+.dispatch-row:hover {
+  background: var(--dispatch-surface-raised);
+}
+
+.dispatch-row.is-selected {
+  border-color: var(--color-primary-ring);
+  box-shadow: 0 0 0 1px var(--color-primary-ring);
+}
+
+/* History rows — nothing to select, no map pane to drive. */
+.dispatch-row-static {
+  cursor: default;
+  opacity: 0.88;
+}
+
+.dispatch-row-static:hover {
+  background: var(--dispatch-surface);
+}
+
+/* Newest unaccepted alert — strongest visual weight in the list. */
+.dispatch-row-critical {
+  border-left-color: var(--status-critical-solid);
+  background: linear-gradient(180deg, rgba(220, 38, 38, 0.1), var(--dispatch-surface) 60%);
+}
+
+.dispatch-row-critical:hover {
+  background: linear-gradient(180deg, rgba(220, 38, 38, 0.14), var(--dispatch-surface-raised) 60%);
+}
+
+.dispatch-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.dispatch-row-elapsed {
+  font-size: var(--text-xs);
+}
+
+.dispatch-row-coords {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--dispatch-text);
+  margin-bottom: 2px;
+}
+
+.dispatch-row-coords svg {
+  color: var(--dispatch-text-muted);
+}
+
+.dispatch-row-reporter {
+  font-size: var(--text-xs);
+  color: var(--dispatch-text-muted);
+}
+
+.dispatch-row-meta {
+  font-size: var(--text-xs);
+  color: var(--dispatch-text-muted);
+  margin-top: 4px;
+}
+
+.dispatch-row-actions {
+  margin-top: var(--space-3);
+  display: flex;
+  gap: var(--space-2);
+}
+
+.dispatch-row .card {
+  margin-top: var(--space-3);
+  margin-bottom: 0;
+}
+
+/* The one deliberate attention animation on this screen: a new,
+   unaccepted alert briefly announces itself when it lands. */
+.dispatch-row-incoming {
+  animation: dispatch-alert-in 2.2s var(--ease-standard);
+}
+
+@keyframes dispatch-alert-in {
+  0% {
+    transform: scale(0.98);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55);
+  }
+  8% {
+    transform: scale(1.01);
+    box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.28);
+  }
+  30% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dispatch-row-incoming {
+    animation: none;
+  }
+}
+
+.dispatch-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dispatch-map-pane {
+  position: relative;
+  min-height: 320px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  border: 1px solid var(--dispatch-border);
+  background: var(--dispatch-surface);
+}
+
+.dispatch-map-pane .empty-state {
+  position: absolute;
+  inset: 0;
+  justify-content: center;
+}
+
+.dispatch-map-frame {
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  border: 0;
+  display: block;
+}
+
+/* ================================================================
+   DESKTOP — 1440px-first split layout: list and map both visible at
+   once, no scrolling on the page itself (the list scrolls internally).
+   ================================================================ */
+@media (min-width: 1100px) {
+  .dispatch-mobile-tabs {
+    display: none;
+  }
+
+  .dispatch-body {
+    display: grid;
+    grid-template-columns: minmax(360px, 460px) 1fr;
+    gap: var(--space-5);
+    overflow: hidden;
+  }
+
+  .dispatch-pane {
+    display: block;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .dispatch-list {
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  .dispatch-map-pane {
+    min-height: 0;
+  }
+}
