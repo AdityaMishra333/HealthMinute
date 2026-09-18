@@ -5,6 +5,13 @@ const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 // their current recommended flash model, so this doesn't go stale again.
 const GEMINI_MODEL = 'gemini-flash-latest';
 
+// If the "latest" alias's shared pool is overloaded, fall back to a
+// specific, pinned model — a distinct deployment with its own capacity,
+// not just another shot at the same busy pool. Verified live against this
+// project's API key before picking it (older pinned models, e.g.
+// gemini-2.5-flash, 404 as "no longer available to new users").
+const GEMINI_FALLBACK_MODEL = 'gemini-3.6-flash';
+
 // Google's default safety thresholds are tuned for general-purpose chat and
 // can refuse or hard-block genuinely severe accident photos (visible blood,
 // trauma) — exactly the images this feature most needs to score high
@@ -17,11 +24,49 @@ const SAFETY_SETTINGS = [
   { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
 ];
 
+// Gemini's shared flash tier occasionally answers with 503 ("high demand")
+// or 429 (rate limited) — both are transient load issues on Google's side,
+// not a problem with the request, and very often succeed a few seconds
+// later. Worth a couple of quick retries per model before falling back to
+// a different model entirely, and only giving up once both are exhausted.
+const MAX_ATTEMPTS_PER_MODEL = 2;
+const RETRY_DELAY_MS = 1200;
+const RETRYABLE_STATUSES = [429, 503];
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function analyzeAccidentPhoto(photoFile) {
   const base64Photo = await fileToBase64(photoFile);
+  const models = [GEMINI_MODEL, GEMINI_FALLBACK_MODEL];
 
+  let lastErr;
+  for (let m = 0; m < models.length; m++) {
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_MODEL; attempt++) {
+      try {
+        return await requestAnalysis(models[m], base64Photo, photoFile.type);
+      } catch (err) {
+        lastErr = err;
+        // A non-transient error (safety block, bad request) won't be fixed
+        // by retrying or switching models — surface it immediately.
+        if (err.code !== 'SERVICE_UNAVAILABLE') throw err;
+
+        const isLastAttemptOnThisModel = attempt === MAX_ATTEMPTS_PER_MODEL;
+        const isLastModel = m === models.length - 1;
+        if (isLastAttemptOnThisModel && isLastModel) throw err;
+        // Retrying the same still-overloaded model benefits from a short
+        // pause; moving on to a fresh model doesn't need one.
+        if (!isLastAttemptOnThisModel) await sleep(RETRY_DELAY_MS * attempt);
+      }
+    }
+  }
+  throw lastErr;
+}
+
+async function requestAnalysis(model, base64Photo, mimeType) {
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -31,7 +76,7 @@ export async function analyzeAccidentPhoto(photoFile) {
             {
               text: 'Look at this accident photo. Reply ONLY with JSON, no other text: {"severity": <number 0-100>, "genuine": "<yes|no|uncertain>", "summary": "<one short sentence>"}'
             },
-            { inlineData: { mimeType: photoFile.type, data: base64Photo } }
+            { inlineData: { mimeType, data: base64Photo } }
           ]
         }],
         safetySettings: SAFETY_SETTINGS,
@@ -41,7 +86,9 @@ export async function analyzeAccidentPhoto(photoFile) {
 
   const result = await response.json();
   if (!response.ok) {
-    throw new Error(result.error?.message || `Gemini request failed (${response.status})`);
+    const err = new Error(result.error?.message || `Gemini request failed (${response.status})`);
+    if (RETRYABLE_STATUSES.includes(response.status)) err.code = 'SERVICE_UNAVAILABLE';
+    throw err;
   }
 
   // A hard safety block (no candidate at all, result.promptFeedback.blockReason

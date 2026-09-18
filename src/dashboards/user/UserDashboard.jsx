@@ -653,12 +653,19 @@ function UserDashboard() {
       console.error('Photo analysis failed:', err);
       // A SAFETY_BLOCKED refusal usually means the photo shows something
       // severe enough to trip Gemini's own content filters — worth saying
-      // plainly rather than a generic failure message, and reassuring the
-      // reporter their report itself still goes through untouched.
-      const summary =
-        err.code === 'SAFETY_BLOCKED'
-          ? 'Automated content filters restricted analysis of this photo — this can happen with graphic injuries. Your report will still be submitted normally.'
-          : 'Could not analyze photo automatically.';
+      // plainly rather than a generic failure message. SERVICE_UNAVAILABLE
+      // survives a few automatic retries already (see geminiVision.js) —
+      // reaching here means Google's shared model stayed overloaded through
+      // all of them, so it's worth telling the reporter it's transient. In
+      // both cases, the report itself still goes through untouched.
+      let summary = 'Could not analyze photo automatically.';
+      if (err.code === 'SAFETY_BLOCKED') {
+        summary =
+          'Automated content filters restricted analysis of this photo — this can happen with graphic injuries. Your report will still be submitted normally.';
+      } else if (err.code === 'SERVICE_UNAVAILABLE') {
+        summary =
+          "Google's photo-analysis service is temporarily overloaded — this usually clears up within a minute. Your report will still be submitted normally.";
+      }
       setAnalysis({ severity: null, genuine: 'uncertain', summary });
     }
     setAnalyzing(false);
