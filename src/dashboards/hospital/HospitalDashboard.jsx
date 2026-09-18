@@ -112,7 +112,13 @@ function AlertRow({ alert, stale, selectable, isSelected, isNew, onSelect, onAcc
         </p>
       )}
 
-      {alert.photoURL && <img src={alert.photoURL} alt="Accident" className="photo-preview" />}
+      {alert.photoURL ? (
+        alert.photoURL.startsWith('data:image') ? (
+          <img src={alert.photoURL} alt="Accident" className="photo-preview" />
+        ) : (
+          <p className="dispatch-row-meta">Photo stored</p>
+        )
+      ) : null}
 
       {(alert.status === 'accepted_by_driver' || alert.status === 'arrived') && alert.ambulanceLocation && (
         <div onClick={(e) => e.stopPropagation()}>

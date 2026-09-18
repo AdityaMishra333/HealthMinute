@@ -36,8 +36,8 @@ import {
 } from '../../shared/Icons';
 import './UserDashboard.css';
 
-const PHOTO_MAX_WIDTH = 600;
-const PHOTO_JPEG_QUALITY = 0.6;
+const PHOTO_MAX_WIDTH = 400;
+const PHOTO_JPEG_QUALITY = 0.4;
 
 // A simple single-tier fare estimate — base fare plus a flat per-km rate on
 // top of the haversine pickup-to-hospital distance. Deliberately not a real
