@@ -94,6 +94,40 @@ body {
   transform: translateY(1px);
 }
 
+/* ================================================================
+   GLOBAL CLICK/TAP FEEDBACK — every native <button> and role="button"
+   control gets a smooth press animation by default, covering the many
+   icon/nav/dismiss buttons across all three dashboards that otherwise
+   had no click feedback of their own. :active fires identically on a
+   mobile tap and a desktop mouse-click, so one rule serves both — no
+   separate touch/pointer handling needed. More specific existing rules
+   (.btn's own translateY, .dt-chat-toggle's own scale) still win via
+   normal CSS specificity, so nothing already tuned changes. Respects
+   prefers-reduced-motion automatically, since it rides the same
+   --duration-fast token theme.css already zeroes out for that setting.
+   ================================================================ */
+
+button,
+[role="button"] {
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+button:active:not(:disabled),
+[role="button"]:active {
+  transform: scale(0.96);
+}
+
+/* Desktop-only hover lift, guarded by (hover: hover) so a mobile tap can
+   never leave a control stuck looking "hovered" after the finger lifts.
+   :not(:active) so clicking always shows the press-scale above, never
+   the lift, even while the cursor is still over the element. */
+@media (hover: hover) and (pointer: fine) {
+  button:not(:disabled):hover:not(:active),
+  [role="button"]:hover:not(:active) {
+    transform: translateY(-1px);
+  }
+}
+
 .btn:disabled {
   cursor: not-allowed;
   opacity: 0.5;

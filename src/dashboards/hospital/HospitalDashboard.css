@@ -174,11 +174,18 @@
   padding: var(--space-3) var(--space-4);
   cursor: pointer;
   transition: border-color var(--duration-fast) var(--ease-standard),
-    background var(--duration-fast) var(--ease-standard);
+    background var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
 }
 
 .dispatch-row:hover {
   background: var(--dispatch-surface-raised);
+}
+
+/* Excludes the non-selectable History variant — that one has no click
+   handler at all, so a press animation there would only be misleading. */
+.dispatch-row:not(.dispatch-row-static):active {
+  transform: scale(0.985);
 }
 
 .dispatch-row.is-selected {

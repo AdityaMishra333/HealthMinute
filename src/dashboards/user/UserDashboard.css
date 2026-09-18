@@ -220,7 +220,12 @@
   text-align: left;
   min-height: 60px;
   transition: border-color var(--duration-fast) var(--ease-standard),
-    background var(--duration-fast) var(--ease-standard);
+    background var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.dt-location-status:active:not(:disabled) {
+  transform: scale(0.985);
 }
 
 .dt-location-status:disabled {
@@ -1043,9 +1048,13 @@
 
 /* ================================================================
    FLOATING FIRST-AID CHAT WIDGET — a circular toggle, bottom right,
-   clear of the floating nav bar, opening a small popover upward in
-   place. The chat itself (FirstAidCard) is unchanged; this only
-   changes how it's surfaced.
+   clear of the floating nav bar. Opens the shared Modal component (see
+   src/shared/Modal.jsx) rather than a popover anchored to this button —
+   a small popover pinned near the bottom nav had nowhere good to grow on
+   mobile and fought with the on-screen keyboard once the question input
+   was focused. The centered, viewport-clamped Modal has no such anchor
+   to fight, and its own overlay/backdrop and Escape handling replace
+   what used to be a manual outside-click listener here.
    ================================================================ */
 
 .dt-chat-widget {
@@ -1077,35 +1086,4 @@
 
 .dt-chat-toggle:active {
   transform: scale(0.95);
-}
-
-.dt-chat-panel {
-  position: absolute;
-  bottom: calc(100% + 12px);
-  right: 0;
-  width: min(340px, calc(100vw - 32px));
-  max-height: 70vh;
-  overflow-y: auto;
-  animation: dt-chat-panel-in var(--duration-base) var(--ease-standard);
-}
-
-.dt-chat-panel .card {
-  margin-bottom: 0;
-}
-
-@keyframes dt-chat-panel-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dt-chat-panel {
-    animation: none;
-  }
 }

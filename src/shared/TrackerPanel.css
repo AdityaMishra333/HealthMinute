@@ -188,6 +188,11 @@
   justify-content: center;
   flex-shrink: 0;
   box-shadow: 0 4px 12px rgba(67, 97, 238, 0.35);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.dt-call-btn:active {
+  transform: scale(0.96);
 }
 
 .dt-section-title {

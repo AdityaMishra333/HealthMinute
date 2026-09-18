@@ -14,6 +14,7 @@ import AmbulanceTracker from '../../shared/AmbulanceTracker';
 import ElapsedTime from '../../shared/ElapsedTime';
 import Skeleton from '../../shared/Skeleton';
 import MapBackdrop from '../../shared/MapBackdrop';
+import Modal from '../../shared/Modal';
 import {
   IconPin,
   IconCamera,
@@ -119,10 +120,7 @@ function describeTwilioFailure(detail) {
 
 function FirstAidCard({ innerRef, question, onQuestionChange, answer, loading, onSubmit }) {
   return (
-    <div className="card dt-card" ref={innerRef}>
-      <p className="card-title">
-        <IconChat size={16} /> First-aid assistant
-      </p>
+    <div ref={innerRef}>
       <form onSubmit={onSubmit} className="dt-assist-form">
         <input
           type="text"
@@ -366,7 +364,6 @@ function UserDashboard() {
   const sosResultTimerRef = useRef(null);
 
   const [chatOpen, setChatOpen] = useState(false);
-  const chatWidgetRef = useRef(null);
 
   const sosRef = useRef(null);
   const contactsRef = useRef(null);
@@ -582,28 +579,6 @@ function UserDashboard() {
     };
   }, []);
 
-  // Close the chat popover on an outside click or Escape — standard
-  // behaviour for this kind of floating toggle panel.
-  useEffect(() => {
-    if (!chatOpen) return undefined;
-
-    const handleClickOutside = (e) => {
-      if (chatWidgetRef.current && !chatWidgetRef.current.contains(e.target)) {
-        setChatOpen(false);
-      }
-    };
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setChatOpen(false);
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [chatOpen]);
-
   useEffect(() => {
     const goOnline = () => setIsOnline(true);
     const goOffline = () => setIsOnline(false);
@@ -659,7 +634,7 @@ function UserDashboard() {
     setAnalysis(null);
     setPhotoPreview(null);
 
-    // Compressed client-side (max 600px wide, JPEG ~0.6 quality) — small
+    // Compressed client-side (max 400px wide, JPEG ~0.4 quality) — small
     // enough to store directly on the Firestore document, no Storage
     // upload needed. This is also what gets submitted as photoURL below.
     try {
@@ -676,7 +651,15 @@ function UserDashboard() {
       setAnalysis(result);
     } catch (err) {
       console.error('Photo analysis failed:', err);
-      setAnalysis({ severity: null, genuine: 'uncertain', summary: 'Could not analyze photo automatically.' });
+      // A SAFETY_BLOCKED refusal usually means the photo shows something
+      // severe enough to trip Gemini's own content filters — worth saying
+      // plainly rather than a generic failure message, and reassuring the
+      // reporter their report itself still goes through untouched.
+      const summary =
+        err.code === 'SAFETY_BLOCKED'
+          ? 'Automated content filters restricted analysis of this photo — this can happen with graphic injuries. Your report will still be submitted normally.'
+          : 'Could not analyze photo automatically.';
+      setAnalysis({ severity: null, genuine: 'uncertain', summary });
     }
     setAnalyzing(false);
   };
@@ -948,32 +931,32 @@ function UserDashboard() {
         onNavigate={handleNavigateToNearby}
       />
 
-      {/* Floating first-aid chat widget — always available, any screen,
-          any state. The chat logic itself is untouched; this just changes
-          how it's surfaced. */}
-      <div className="dt-chat-widget" ref={chatWidgetRef}>
+      {/* Floating first-aid chat widget — always available, any screen, any
+          state. Opens as a proper centered modal rather than a popover
+          anchored off this button: on mobile, a popover pinned near the
+          bottom nav had nowhere good to grow and fought with the on-screen
+          keyboard the moment the question input was focused. A centered,
+          viewport-clamped modal has no such anchor to fight. */}
+      <div className="dt-chat-widget">
         <button
           type="button"
           className="dt-chat-toggle"
-          onClick={() => setChatOpen((v) => !v)}
-          aria-label={chatOpen ? 'Close first-aid assistant' : 'Open first-aid assistant'}
-          aria-expanded={chatOpen}
+          onClick={() => setChatOpen(true)}
+          aria-label="Open first-aid assistant"
         >
-          {chatOpen ? <IconClose size={20} /> : <IconChat size={20} />}
+          <IconChat size={20} />
         </button>
-
-        {chatOpen && (
-          <div className="dt-chat-panel">
-            <FirstAidCard
-              question={chatQuestion}
-              onQuestionChange={setChatQuestion}
-              answer={chatAnswer}
-              loading={chatLoading}
-              onSubmit={handleAskChatbot}
-            />
-          </div>
-        )}
       </div>
+
+      <Modal open={chatOpen} onClose={() => setChatOpen(false)} title="First-aid assistant">
+        <FirstAidCard
+          question={chatQuestion}
+          onQuestionChange={setChatQuestion}
+          answer={chatAnswer}
+          loading={chatLoading}
+          onSubmit={handleAskChatbot}
+        />
+      </Modal>
 
       <div className="dt-topbar">
         <div className="dt-profile">
