@@ -446,6 +446,16 @@
   z-index: var(--z-fixed-nav);
 }
 
+/* Wraps the two items on each side of the FAB so each half of the bar
+   claims exactly the same width regardless of how many items or how much
+   label text is on either side — guarantees the FAB lands dead-center
+   rather than depending on the two sides happening to balance out. */
+.dt-navbar-group {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
 .dt-navbar-item {
   flex: 1;
   display: flex;
@@ -476,13 +486,16 @@
   border-radius: 50%;
   margin-top: -28px;
   border: 4px solid var(--dt-bg);
-  background: var(--color-primary);
+  /* Deliberate: this is the one button whose entire purpose is sending an
+     emergency SOS, the same "active, unaccepted emergency" meaning
+     critical-red is reserved for elsewhere in the app. */
+  background: var(--status-critical-solid);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(67, 97, 238, 0.45);
+  box-shadow: 0 10px 24px rgba(220, 38, 38, 0.45);
 }
 
 /* ================================================================
@@ -1029,14 +1042,15 @@
 }
 
 /* ================================================================
-   FLOATING FIRST-AID CHAT WIDGET — a circular toggle, top right,
-   opening a small popover in place. The chat itself (FirstAidCard) is
-   unchanged; this only changes how it's surfaced.
+   FLOATING FIRST-AID CHAT WIDGET — a circular toggle, bottom right,
+   clear of the floating nav bar, opening a small popover upward in
+   place. The chat itself (FirstAidCard) is unchanged; this only
+   changes how it's surfaced.
    ================================================================ */
 
 .dt-chat-widget {
   position: fixed;
-  top: calc(78px + env(safe-area-inset-top));
+  bottom: calc(92px + env(safe-area-inset-bottom));
   right: 16px;
   z-index: var(--z-map-widget);
 }
@@ -1067,7 +1081,7 @@
 
 .dt-chat-panel {
   position: absolute;
-  top: calc(100% + 12px);
+  bottom: calc(100% + 12px);
   right: 0;
   width: min(340px, calc(100vw - 32px));
   max-height: 70vh;
@@ -1082,7 +1096,7 @@
 @keyframes dt-chat-panel-in {
   from {
     opacity: 0;
-    transform: translateY(-8px) scale(0.98);
+    transform: translateY(8px) scale(0.98);
   }
   to {
     opacity: 1;

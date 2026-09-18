@@ -1383,21 +1383,30 @@ function UserDashboard() {
       )}
 
       <nav className="dt-navbar">
-        <button
-          type="button"
-          className="dt-navbar-item"
-          onClick={() => {
-            setView('home');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-        >
-          <IconHome size={19} />
-          <span>Home</span>
-        </button>
-        <button type="button" className="dt-navbar-item" onClick={() => setChatOpen(true)}>
-          <IconChat size={19} />
-          <span>Assist</span>
-        </button>
+        <div className="dt-navbar-group">
+          <button
+            type="button"
+            className="dt-navbar-item"
+            onClick={() => {
+              setView('home');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          >
+            <IconHome size={19} />
+            <span>Home</span>
+          </button>
+          <button
+            type="button"
+            className="dt-navbar-item"
+            onClick={() => setView('book')}
+            aria-label="Not an emergency? Book an ambulance instead"
+            title="Not an emergency? Book an ambulance instead"
+          >
+            <IconAmbulance size={19} />
+            <span>Book</span>
+          </button>
+        </div>
+
         <button
           type="button"
           className="dt-navbar-fab"
@@ -1406,21 +1415,24 @@ function UserDashboard() {
         >
           <IconAlert size={22} />
         </button>
-        <button
-          type="button"
-          className="dt-navbar-item"
-          onClick={() => {
-            setView('home');
-            setTimeout(() => scrollToRef(sosRef), 0);
-          }}
-        >
-          <IconMic size={19} />
-          <span>SOS</span>
-        </button>
-        <button type="button" className="dt-navbar-item" onClick={() => signOut(auth)}>
-          <IconLogout size={19} />
-          <span>Logout</span>
-        </button>
+
+        <div className="dt-navbar-group">
+          <button
+            type="button"
+            className="dt-navbar-item"
+            onClick={() => {
+              setView('home');
+              setTimeout(() => scrollToRef(sosRef), 0);
+            }}
+          >
+            <IconMic size={19} />
+            <span>SOS</span>
+          </button>
+          <button type="button" className="dt-navbar-item" onClick={() => signOut(auth)}>
+            <IconLogout size={19} />
+            <span>Logout</span>
+          </button>
+        </div>
       </nav>
     </div>
   );
