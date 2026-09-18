@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { signOut } from 'firebase/auth';
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -7,8 +7,11 @@ import { analyzeAccidentPhoto } from '../../shared/geminiVision';
 import { getFirstAidGuidance } from '../../shared/chatbot';
 import { listenForSOS } from '../../shared/speechRecognition';
 import { normalizePhoneE164 } from '../../shared/phone';
+import { haversineKm } from '../../shared/geo';
+import { playBuzzer } from '../../shared/buzzer';
 import TrackerPanel from '../../shared/TrackerPanel';
 import AmbulanceTracker from '../../shared/AmbulanceTracker';
+import ElapsedTime from '../../shared/ElapsedTime';
 import Skeleton from '../../shared/Skeleton';
 import MapBackdrop from '../../shared/MapBackdrop';
 import {
@@ -26,11 +29,31 @@ import {
   IconUsers,
   IconClose,
   IconChevronDown,
+  IconNavigate,
+  IconAmbulance,
+  IconHospital,
+  IconArrowLeft,
 } from '../../shared/Icons';
 import './UserDashboard.css';
 
 const PHOTO_MAX_WIDTH = 600;
 const PHOTO_JPEG_QUALITY = 0.6;
+
+// A simple single-tier fare estimate — base fare plus a flat per-km rate on
+// top of the haversine pickup-to-hospital distance. Deliberately not a real
+// pricing engine (no surge, no vehicle tiers): this is a prototype estimate,
+// clearly labelled as such wherever it's shown.
+const BOOKING_BASE_FARE_INR = 150;
+const BOOKING_PER_KM_RATE_INR = 25;
+
+function estimateFare(distanceKm) {
+  return Math.round(BOOKING_BASE_FARE_INR + distanceKm * BOOKING_PER_KM_RATE_INR);
+}
+
+// How close another user's unaccepted report has to be before this device
+// gets buzzed about it — a bystander-alert radius, not a medical response
+// radius, so it's kept fairly tight.
+const NEARBY_RADIUS_KM = 3;
 
 // Resizes to at most PHOTO_MAX_WIDTH wide (never upscales a smaller image)
 // and re-encodes as JPEG at PHOTO_JPEG_QUALITY, entirely client-side via
@@ -187,6 +210,56 @@ function EmergencyContactsCard({
   );
 }
 
+function formatDistance(km) {
+  return km < 1 ? `${Math.round(km * 1000)} m away` : `${km.toFixed(1)} km away`;
+}
+
+// A booking's lifecycle is simpler than an accident's — no hospital-
+// acceptance step — so it gets its own small label helper rather than
+// forcing it through trackingStatus.js's accident-shaped step list.
+function bookingStatusLabel(booking) {
+  if (booking.status === 'arrived') return 'AMBULANCE ARRIVED';
+  if (booking.status === 'accepted_by_driver') return 'AMBULANCE EN ROUTE';
+  return 'AWAITING DRIVER';
+}
+
+// A stack of nearby-bystander alerts — someone else's unaccepted report
+// close enough that this user could plausibly help or should just be
+// aware. Deliberately uses the reserved critical-red tone: this is exactly
+// the "active, unaccepted emergency" meaning that colour is reserved for.
+function NearbyAlertBanner({ alerts, onDismiss, onNavigate }) {
+  if (alerts.length === 0) return null;
+
+  return (
+    <div className="dt-nearby-alerts-wrap">
+      {alerts.map((a) => (
+        <div key={a.id} className="dt-nearby-alert" role="alert">
+          <div className="dt-nearby-alert-head">
+            <IconAlert size={16} />
+            <span className="dt-nearby-alert-title">Accident reported nearby</span>
+            <button
+              type="button"
+              className="dt-nearby-alert-dismiss"
+              onClick={() => onDismiss(a.id)}
+              aria-label="Dismiss"
+            >
+              <IconClose size={12} />
+            </button>
+          </div>
+          <p className="dt-nearby-alert-distance tnum">{formatDistance(a.distanceKm)}</p>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm btn-block"
+            onClick={() => onNavigate(a.latitude, a.longitude)}
+          >
+            <IconNavigate size={15} /> Navigate to accident
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // The Uber/Ola-style tracking sheet — pops up from the bottom the instant a
 // report exists (not while just capturing location beforehand), and stays
 // there through the whole tracking lifecycle: a single "your location" pin
@@ -262,6 +335,16 @@ function UserDashboard() {
   const [mapMinimized, setMapMinimized] = useState(false);
   const [trackingEta, setTrackingEta] = useState(null);
 
+  // Which full-screen page is showing — 'home' (capture location/photo,
+  // voice SOS, contacts) or 'tracking' (the ambulance-en-route view). Kept
+  // as its own state rather than derived straight from activeReport so the
+  // user can navigate back to 'home' via the nav bar even while a report is
+  // still active, instead of being stuck on the tracking view with no way
+  // back — activeReport still decides what tracking has to *show*, not
+  // which page is currently open.
+  const [view, setView] = useState('home');
+  const initialViewSetRef = useRef(false);
+
   const [activeReport, setActiveReport] = useState(null);
   const [activeReportLoading, setActiveReportLoading] = useState(true);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -288,6 +371,28 @@ function UserDashboard() {
   const sosRef = useRef(null);
   const contactsRef = useRef(null);
 
+  // Bystander alerts — other users' unaccepted reports close enough to this
+  // device to be worth surfacing. reportedAccidents mirrors Firestore
+  // directly; myLiveLocation is a coarse, low-power fix used only for the
+  // distance check, entirely separate from the high-accuracy `location`
+  // captured when this user files their own report.
+  const [reportedAccidents, setReportedAccidents] = useState([]);
+  const [myLiveLocation, setMyLiveLocation] = useState(null);
+  const [dismissedNearbyIds, setDismissedNearbyIds] = useState(() => new Set());
+  const buzzedNearbyIdsRef = useRef(new Set());
+
+  // Non-emergency ambulance booking — a separate flow, collection, and
+  // status thread from the accident-report flow above. pickupLocation
+  // defaults from myLiveLocation but can be refreshed independently.
+  const [bookingHospitals, setBookingHospitals] = useState([]);
+  const [pickupLocation, setPickupLocation] = useState(null);
+  const [pickupLocating, setPickupLocating] = useState(false);
+  const [selectedHospitalId, setSelectedHospitalId] = useState(null);
+  const [activeBooking, setActiveBooking] = useState(null);
+  const [activeBookingLoading, setActiveBookingLoading] = useState(true);
+  const [bookingSaving, setBookingSaving] = useState(false);
+  const [bookingError, setBookingError] = useState('');
+
   useEffect(() => {
     const q = query(collection(db, 'accidents'), where('userId', '==', auth.currentUser.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -300,6 +405,168 @@ function UserDashboard() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Every currently-unaccepted report from any user — filtered down to
+  // "nearby" below. Independent of activeReport above, which only ever
+  // looks at this user's own reports.
+  useEffect(() => {
+    const q = query(collection(db, 'accidents'), where('status', '==', 'reported'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setReportedAccidents(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // A coarse, low-power location fix purely for the nearby-alert distance
+  // check — deliberately separate from the high-accuracy `location` state
+  // used when this user files their own report, so bystander alerts work
+  // without ever requiring the user to start a report themselves. Quietly
+  // does nothing if permission is denied; this is a bonus awareness feature,
+  // not something the rest of the app depends on.
+  useEffect(() => {
+    if (!navigator.geolocation) return undefined;
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setMyLiveLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      },
+      () => {},
+      { enableHighAccuracy: false, maximumAge: 30000, timeout: 10000 }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
+
+  // Derived, not stored: recomputes whenever the raw report list, the
+  // location fix, or a dismissal changes — no need to mirror it into its
+  // own state.
+  const nearbyAlerts = useMemo(() => {
+    if (!myLiveLocation) return [];
+    return reportedAccidents
+      .filter((a) => a.userId !== auth.currentUser.uid && !dismissedNearbyIds.has(a.id))
+      .map((a) => ({ ...a, distanceKm: haversineKm(myLiveLocation, a) }))
+      .filter((a) => a.distanceKm <= NEARBY_RADIUS_KM)
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+  }, [reportedAccidents, myLiveLocation, dismissedNearbyIds]);
+
+  // The one genuine side effect here — buzzes once per accident the moment
+  // it first qualifies as nearby, tracked in a ref so it never repeats for
+  // the same accident on every subsequent location tick.
+  useEffect(() => {
+    const freshlyNearby = nearbyAlerts.filter((a) => !buzzedNearbyIdsRef.current.has(a.id));
+    if (freshlyNearby.length > 0) {
+      freshlyNearby.forEach((a) => buzzedNearbyIdsRef.current.add(a.id));
+      playBuzzer();
+    }
+  }, [nearbyAlerts]);
+
+  const handleDismissNearbyAlert = (id) => {
+    setDismissedNearbyIds((prev) => new Set([...prev, id]));
+  };
+
+  const handleNavigateToNearby = (latitude, longitude) => {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`, '_blank');
+  };
+
+  // Candidate destination hospitals for a booking — same shape and query
+  // the driver dashboard already uses to recommend a hospital.
+  useEffect(() => {
+    const q = query(collection(db, 'users'), where('role', '==', 'hospital'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setBookingHospitals(
+        snapshot.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((h) => h.latitude != null && h.longitude != null)
+      );
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // This user's own non-final booking, mirroring the activeReport pattern
+  // above but against the separate `bookings` collection.
+  useEffect(() => {
+    const q = query(collection(db, 'bookings'), where('userId', '==', auth.currentUser.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const mine = snapshot.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((b) => b.status !== 'resolved' && b.status !== 'cancelled')
+        .sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+      setActiveBooking(mine[0] ?? null);
+      setActiveBookingLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Seed pickup from the passive nearby-alert location fix the first time
+  // it becomes available, so the booking form isn't blocked on its own
+  // separate location prompt when a perfectly good fix already exists.
+  useEffect(() => {
+    if (myLiveLocation && !pickupLocation) setPickupLocation(myLiveLocation);
+  }, [myLiveLocation, pickupLocation]);
+
+  const handleCapturePickupLocation = () => {
+    setPickupLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setPickupLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+        setPickupLocating(false);
+      },
+      () => setPickupLocating(false),
+      { enableHighAccuracy: true }
+    );
+  };
+
+  const bookingHospitalsWithDistance = useMemo(() => {
+    if (!pickupLocation) return [];
+    return bookingHospitals
+      .map((h) => ({ ...h, distanceKm: haversineKm(pickupLocation, h) }))
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+  }, [bookingHospitals, pickupLocation]);
+
+  const selectedBookingHospital = bookingHospitalsWithDistance.find((h) => h.id === selectedHospitalId) ?? null;
+  const bookingFareEstimate = selectedBookingHospital ? estimateFare(selectedBookingHospital.distanceKm) : null;
+
+  const handleConfirmBooking = async () => {
+    if (!pickupLocation || !selectedBookingHospital) return;
+
+    setBookingSaving(true);
+    setBookingError('');
+    try {
+      await addDoc(collection(db, 'bookings'), {
+        userId: auth.currentUser.uid,
+        userEmail: auth.currentUser.email,
+        latitude: pickupLocation.latitude,
+        longitude: pickupLocation.longitude,
+        destinationHospitalId: selectedBookingHospital.id,
+        destinationHospitalName: selectedBookingHospital.hospitalName || 'Unnamed hospital',
+        destinationLatitude: selectedBookingHospital.latitude,
+        destinationLongitude: selectedBookingHospital.longitude,
+        distanceKm: selectedBookingHospital.distanceKm,
+        fare: bookingFareEstimate,
+        status: 'reported',
+        createdAt: serverTimestamp(),
+      });
+      setSelectedHospitalId(null);
+    } catch (err) {
+      setBookingError('Could not create the booking: ' + err.message);
+    }
+    setBookingSaving(false);
+  };
+
+  const handleCancelBooking = async () => {
+    if (!activeBooking) return;
+    await updateDoc(doc(db, 'bookings', activeBooking.id), {
+      status: 'cancelled',
+      cancelledAt: serverTimestamp(),
+    });
+  };
+
+  // Land on the tracking page automatically only once, the first time we
+  // learn whether a report is already active (e.g. reloading mid-emergency)
+  // — after that, the user's own nav-bar choice always wins.
+  useEffect(() => {
+    if (activeReportLoading || initialViewSetRef.current) return;
+    initialViewSetRef.current = true;
+    if (activeReport) setView('tracking');
+  }, [activeReportLoading, activeReport]);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'users', auth.currentUser.uid), (snap) => {
@@ -442,6 +709,7 @@ function UserDashboard() {
       setAnalysis(null);
       setError('');
       setMapMinimized(false); // the tracking sheet should start expanded
+      setView('tracking'); // move to the ambulance-en-route page right away
       setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
       setError('Could not submit the report: ' + err.message);
@@ -613,6 +881,12 @@ function UserDashboard() {
     );
   };
 
+  // Derived, not stored: if the report the tracking page was showing has
+  // since resolved (or vanished), there's nothing left to track there, so
+  // render 'home' regardless of the last navigation choice — without a
+  // second effect just to force that same correction into state.
+  const effectiveView = view === 'tracking' && !activeReport ? 'home' : view;
+
   const initial = (auth.currentUser.email || 'U')[0].toUpperCase();
 
   // Purely decorative: whatever real location we already have on screen —
@@ -668,6 +942,12 @@ function UserDashboard() {
         </div>
       )}
 
+      <NearbyAlertBanner
+        alerts={nearbyAlerts}
+        onDismiss={handleDismissNearbyAlert}
+        onNavigate={handleNavigateToNearby}
+      />
+
       {/* Floating first-aid chat widget — always available, any screen,
           any state. The chat logic itself is untouched; this just changes
           how it's surfaced. */}
@@ -706,7 +986,10 @@ function UserDashboard() {
         <button
           type="button"
           className="dt-bell-btn"
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          onClick={() => {
+            if (activeReport) setView('tracking');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
           aria-label={activeReport ? 'Your active report' : 'Report an accident'}
         >
           <IconBell size={18} />
@@ -728,7 +1011,7 @@ function UserDashboard() {
             <Skeleton variant="text" width="70%" />
             <Skeleton variant="text" width="45%" />
           </div>
-        ) : activeReport ? (
+        ) : effectiveView === 'tracking' && activeReport ? (
           /* ============================================================
              CONFIRMATION STATE — a report already exists. This fully
              replaces the reporting form: one calm, dominant view of
@@ -766,6 +1049,160 @@ function UserDashboard() {
               onRemove={handleRemoveContact}
             />
           </>
+        ) : effectiveView === 'book' ? (
+          /* ============================================================
+             BOOK AMBULANCE — a separate, calmer flow from the panic SOS
+             report above: pick a pickup point and a destination hospital,
+             see an upfront fare estimate, confirm, then track. Shows either
+             the request form or (once activeBooking exists) the live
+             tracking view, mirroring how 'tracking' vs the report form
+             works for accidents above.
+             ============================================================ */
+          <>
+            <button type="button" className="dt-back-link" onClick={() => setView('home')}>
+              <IconArrowLeft size={16} /> Back to home
+            </button>
+
+            {activeBookingLoading ? (
+              <div className="card dt-card" aria-hidden="true">
+                <Skeleton variant="block" height={100} />
+                <Skeleton variant="text" width="70%" />
+              </div>
+            ) : activeBooking ? (
+              <div className="card dt-card dt-card-hero">
+                <div className="dt-hero dt-hero-active">
+                  <div className="dt-hero-top">
+                    <span className="dt-hero-id">#{activeBooking.id.slice(0, 8).toUpperCase()}</span>
+                  </div>
+                  <p className="dt-hero-status">{bookingStatusLabel(activeBooking)}</p>
+                  <ElapsedTime className="dt-hero-elapsed" since={activeBooking.createdAt} />
+                  <div className="dt-hero-dates">
+                    <div>
+                      <p className="dt-hero-label">Fare estimate</p>
+                      <p className="dt-hero-value tnum">₹{activeBooking.fare}</p>
+                    </div>
+                    <div className="dt-hero-right">
+                      <p className="dt-hero-label">Destination</p>
+                      <p className="dt-hero-value">{activeBooking.destinationHospitalName}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {activeBooking.ambulanceLocation &&
+                (activeBooking.status === 'accepted_by_driver' || activeBooking.status === 'arrived') ? (
+                  <AmbulanceTracker accident={activeBooking} />
+                ) : (
+                  <p className="dt-booking-waiting-text">Waiting for a nearby driver to accept your booking…</p>
+                )}
+
+                {activeBooking.status === 'reported' && (
+                  <button type="button" className="btn btn-ghost btn-block" onClick={handleCancelBooking}>
+                    Cancel booking
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <p className="dt-report-eyebrow">Book an ambulance</p>
+                <p className="dt-report-sub">Non-emergency transport, with an upfront fare estimate.</p>
+
+                <button
+                  type="button"
+                  className={`dt-location-status dt-location-status-${
+                    pickupLocation ? 'locked' : pickupLocating ? 'acquiring' : 'idle'
+                  }`}
+                  onClick={handleCapturePickupLocation}
+                  disabled={pickupLocating}
+                >
+                  {pickupLocation ? (
+                    <>
+                      <span className="dt-location-status-icon">
+                        <IconCheck size={15} />
+                      </span>
+                      <span className="dt-location-status-text">
+                        <strong>Pickup location set</strong>
+                        <span className="tnum">
+                          {pickupLocation.latitude.toFixed(4)}, {pickupLocation.longitude.toFixed(4)}
+                        </span>
+                      </span>
+                    </>
+                  ) : pickupLocating ? (
+                    <>
+                      <span className="spinner spinner-sm" />
+                      <span className="dt-location-status-text">
+                        <strong>Getting your location…</strong>
+                        <span>Hold still for a second</span>
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="dt-location-status-icon">
+                        <IconPin size={15} />
+                      </span>
+                      <span className="dt-location-status-text">
+                        <strong>Set pickup location</strong>
+                        <span>Required before choosing a hospital</span>
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                {pickupLocation && (
+                  <div className="dt-step-reveal is-open">
+                    <div className="dt-step-reveal-inner">
+                      <p className="dt-section-title">Choose a destination hospital</p>
+                      {bookingHospitalsWithDistance.length === 0 ? (
+                        <p className="status-line">No hospitals are registered yet.</p>
+                      ) : (
+                        <div className="dt-hospital-list">
+                          {bookingHospitalsWithDistance.map((h) => (
+                            <button
+                              type="button"
+                              key={h.id}
+                              className={`dt-hospital-option ${selectedHospitalId === h.id ? 'is-selected' : ''}`}
+                              onClick={() => setSelectedHospitalId(h.id)}
+                            >
+                              <IconHospital size={16} />
+                              <span className="dt-hospital-option-info">
+                                <strong>{h.hospitalName || 'Unnamed hospital'}</strong>
+                                <span className="tnum">
+                                  {h.distanceKm.toFixed(1)} km · {h.availableBeds ?? 0} beds
+                                </span>
+                              </span>
+                              {selectedHospitalId === h.id && <IconCheck size={16} />}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedBookingHospital && (
+                  <div className="dt-booking-fare-estimate">
+                    <p className="dt-booking-fare-estimate-label">Estimated fare</p>
+                    <p className="dt-booking-fare-estimate-amount tnum">₹{bookingFareEstimate}</p>
+                    <p className="dt-booking-fare-estimate-note">
+                      For {selectedBookingHospital.distanceKm.toFixed(1)} km · estimate only, final fare may vary.
+                    </p>
+                  </div>
+                )}
+
+                {bookingError && <p className="status-line status-error">{bookingError}</p>}
+
+                {selectedBookingHospital && (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-xl btn-block dt-reveal-step"
+                    onClick={handleConfirmBooking}
+                    disabled={bookingSaving}
+                  >
+                    <IconAmbulance size={20} /> {bookingSaving ? 'Booking…' : 'Confirm booking'}
+                  </button>
+                )}
+              </>
+            )}
+          </>
         ) : (
           /* ============================================================
              REPORT STATE — staged reveal. Only the location button shows
@@ -776,6 +1213,10 @@ function UserDashboard() {
           <>
             <p className="dt-report-eyebrow">Report an accident</p>
             <p className="dt-report-sub">One tap shares your live location with nearby hospitals &amp; drivers.</p>
+
+            <button type="button" className="dt-book-ambulance-link" onClick={() => setView('book')}>
+              <IconAmbulance size={14} /> Not an emergency? Book an ambulance instead
+            </button>
 
             <button
               type="button"
@@ -932,7 +1373,7 @@ function UserDashboard() {
         )}
       </div>
 
-      {activeReport && (
+      {effectiveView === 'tracking' && activeReport && (
         <TrackingSheet
           accident={activeReport}
           collapsed={mapMinimized}
@@ -942,7 +1383,14 @@ function UserDashboard() {
       )}
 
       <nav className="dt-navbar">
-        <button type="button" className="dt-navbar-item" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+        <button
+          type="button"
+          className="dt-navbar-item"
+          onClick={() => {
+            setView('home');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        >
           <IconHome size={19} />
           <span>Home</span>
         </button>
@@ -958,7 +1406,14 @@ function UserDashboard() {
         >
           <IconAlert size={22} />
         </button>
-        <button type="button" className="dt-navbar-item" onClick={() => scrollToRef(sosRef)}>
+        <button
+          type="button"
+          className="dt-navbar-item"
+          onClick={() => {
+            setView('home');
+            setTimeout(() => scrollToRef(sosRef), 0);
+          }}
+        >
           <IconMic size={19} />
           <span>SOS</span>
         </button>

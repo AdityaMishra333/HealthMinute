@@ -10,6 +10,7 @@ import StatusPill from '../../shared/StatusPill';
 import Skeleton from '../../shared/Skeleton';
 import EmptyState from '../../shared/EmptyState';
 import { getStatusTone } from '../../shared/trackingStatus';
+import { playBuzzer } from '../../shared/buzzer';
 import {
   IconAlert,
   IconBed,
@@ -180,6 +181,7 @@ function HospitalDashboard() {
     if (prevIds) {
       const justArrived = alerts.filter((a) => !prevIds.has(a.id) && !a.acceptedHospitalId);
       if (justArrived.length) {
+        playBuzzer();
         setNewAlertIds((prev) => new Set([...prev, ...justArrived.map((a) => a.id)]));
         justArrived.forEach((a) => {
           setTimeout(() => {
